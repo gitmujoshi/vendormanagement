@@ -1,1 +1,38 @@
- 
+# @file deploy.yml
+# @description GitHub Actions workflow for automated deployment
+
+name: Deploy Infrastructure and Application
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v1
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy Infrastructure
+        run: |
+          chmod +x scripts/deploy.sh
+          ./scripts/deploy.sh
+        env:
+          ENVIRONMENT: prod
+          DB_ADMIN_USERNAME: ${{ secrets.DB_ADMIN_USERNAME }}
+          DB_ADMIN_PASSWORD: ${{ secrets.DB_ADMIN_PASSWORD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+
+      - name: Initialize Database
+        run: |
+          chmod +x scripts/init-database.sh
+          ./scripts/init-database.sh 
