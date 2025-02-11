@@ -15,6 +15,7 @@
 import React, { useState } from 'react';
 import { View, TextInput, Button } from 'react-native';
 import { useLocation } from '../hooks/useLocation';
+import { InspectionData } from '../types/inspection';
 
 interface InspectionFormProps {
   stationId: string;
