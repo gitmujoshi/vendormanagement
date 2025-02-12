@@ -9,28 +9,34 @@
  * Each endpoint includes authentication and authorization checks.
  */
 
-// Authentication Endpoints
-POST /api/auth/login         // Authenticate user and return JWT
-POST /api/auth/register      // Create new user account (admin only)
-
-// Properties Endpoints
-GET /api/properties          // List all properties (paginated)
-POST /api/properties         // Create new property (admin only)
-GET /api/properties/:id      // Get property details
-
-// Stations Endpoints
-GET /api/stations            // List all stations (filtered by property)
-POST /api/stations           // Create new station (admin only)
-GET /api/stations/:id        // Get station details
-PUT /api/stations/:id/assign // Assign engineer to station
-
-// Inspections Endpoints
-GET /api/inspections        // List inspections (filtered by date/engineer)
-POST /api/inspections       // Create new inspection
-GET /api/inspections/:id    // Get inspection details
-PUT /api/inspections/:id/lock // Lock inspection after completion
-
-// Repairs Endpoints
-POST /api/repairs           // Create new repair record
-GET /api/repairs/:id        // Get repair details
-PUT /api/repairs/:id/workorder // Update work order details 
+/**
+ * API Routes Definition
+ */
+export const routes = {
+  auth: {
+    login: '/api/auth/login',         // Authenticate user and return JWT
+    register: '/api/auth/register',   // Create new user account (admin only)
+  },
+  properties: {
+    list: '/api/properties',          // List all properties (paginated)
+    create: '/api/properties',        // Create new property (admin only)
+    getById: '/api/properties/:id',   // Get property details
+  },
+  stations: {
+    list: '/api/stations',           // List all stations
+    create: '/api/stations',         // Create new station
+    getById: '/api/stations/:id',    // Get station details
+    assign: '/api/stations/:id/assign', // Assign engineer
+  },
+  inspections: {
+    list: '/api/inspections',        // List inspections (filtered by date/engineer)
+    create: '/api/inspections',       // Create new inspection
+    getById: '/api/inspections/:id',    // Get inspection details
+    lock: '/api/inspections/:id/lock'    // Lock inspection after completion
+  },
+  repairs: {
+    create: '/api/repairs',           // Create new repair record
+    getById: '/api/repairs/:id',        // Get repair details
+    update: '/api/repairs/:id/workorder'  // Update work order details
+  }
+}; 

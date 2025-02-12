@@ -13,7 +13,7 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
+import jwt, { JwtPayload } from 'jsonwebtoken';
 
 /**
  * Middleware to authenticate API requests
@@ -30,7 +30,7 @@ export const authMiddleware = (req: Request, res: Response, next: NextFunction) 
     if (!token) throw new Error('No token provided');
 
     // Verify token and decode user information
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as JwtPayload;
     req.user = decoded;
     next();
   } catch (error) {

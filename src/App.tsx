@@ -15,7 +15,7 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { Provider } from 'react-redux';
-import store from './store';
+import { store } from './store';
 
 import AuthStack from './navigation/AuthStack';
 import MainStack from './navigation/MainStack';

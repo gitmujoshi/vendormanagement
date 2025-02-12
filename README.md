@@ -16,29 +16,61 @@
 11. [Contributing](#contributing)
 
 ## Overview
+A comprehensive irrigation monitoring and management system that includes:
+- Backend API services
+- Infrastructure automation
+- Monitoring and alerting
+- Single Page Application (SPA) for real-time monitoring
 
-The Irrigation Monitoring System is an internal application designed to support vendor services, monitor existing vendor services, and measure individual effectiveness. The system includes a backend API, web admin interface, and mobile applications for iOS and Android.
+## Features
+- Real-time monitoring and control
+- Automated deployment pipeline
+- Infrastructure as Code with Terraform
+- Containerized services with Docker
+- Comprehensive logging and monitoring
+- **New: Interactive SPA Dashboard**
 
-### Key Features
-- Account management with property details
-- Security measures for account groups
-- Station management and monitoring
-- Automated task allocation
-- Inspection form management
-- Repair tracking system
-- Monthly reporting
-- Admin query builder
+## Single Page Application
+The new SPA provides a modern, responsive interface for:
+- Real-time dashboard monitoring
+- Interactive station management
+- Visual inspection calendar
+- Advanced reporting interface
+- Responsive design for all devices
 
-### Technical Requirements
-- Platform Compatibility: iOS and Android
-- Backend Integration: Azure Cloud
-- Push Notifications
-- Data Security
-- Cross-platform compatibility
+### SPA Technical Stack
+- React 18+
+- TypeScript
+- Redux Toolkit
+- React Native Paper
+- Recharts for visualization
+
+### SPA Setup
+```bash
+# Navigate to the SPA directory
+cd frontend
+
+# Install dependencies
+npm install
+
+# Start development server
+npm start
+
+# Build for production
+npm run build
+```
 
 ## Prerequisites
 
-### Required Software
+### Infrastructure
+
+#### Prerequisites
+- Azure Subscription with appropriate permissions
+- Terraform >= 1.0.0
+- Docker
+- Node.js >= 18.0.0
+
+#### Required Software
 ```bash
 # Install Node.js (v18 or later)
 curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
@@ -51,9 +83,6 @@ curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo apt-key add -
 sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
 sudo apt-get update && sudo apt-get install terraform
-
-# Install React Native CLI
-npm install -g react-native-cli
 ```
 
 ### Required Accounts and Subscriptions
@@ -95,7 +124,7 @@ CREATE TABLE Users (
 CREATE TABLE Properties (
     id UUID PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
-    address TEXT NOT NULL,
+    address TEXT NOT NULL,git brna
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -521,3 +550,63 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 **Note**: Remember to replace placeholder values (your-org, your-resource-group, etc.) with your actual values before using this README.
+
+## Development Workflow
+
+### Backend Development
+[... existing backend development sections remain unchanged ...]
+
+### SPA Development
+```bash
+# Start development server
+npm start
+
+# Run tests
+npm test
+
+# Run linting
+npm run lint
+
+# Format code
+npm run format
+```
+
+### Code Quality
+- ESLint configuration
+- Prettier formatting
+- TypeScript strict mode
+- Component documentation
+
+## Additional Documentation
+
+### SPA Architecture
+- Component-based architecture
+- State management with Redux
+- API integration patterns
+- Responsive design implementation
+
+### SPA Features
+1. Dashboard
+   - Real-time monitoring
+   - Key metrics display
+   - Interactive charts
+
+2. Properties Management
+   - Property listing
+   - Detail views
+   - Edit capabilities
+
+3. Stations
+   - Status monitoring
+   - Configuration
+   - Maintenance tracking
+
+4. Inspections
+   - Calendar view
+   - Form management
+   - Status tracking
+
+5. Reports
+   - Custom report generation
+   - Data export
+   - Visual analytics
