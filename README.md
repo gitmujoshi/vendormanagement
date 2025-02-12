@@ -143,98 +143,157 @@ npm test
 
 ## Infrastructure Setup
 
-### AWS Infrastructure (Using Terraform)
+### Database Infrastructure
 
-1. Initialize Terraform:
-   ```bash
-   cd terraform
-   terraform init
-   ```
+#### AWS RDS Configuration
 
-2. Configure AWS Provider:
+The project uses AWS RDS with enhanced security and monitoring:
+
+1. **Encryption and Security**:
    ```hcl
-   # terraform/provider.tf
-   provider "aws" {
-     region = "us-east-1"
-     # Additional provider configuration
+   resource "aws_db_instance" "postgres" {
+     # Encryption settings
+     storage_encrypted      = true
+     kms_key_id            = aws_kms_key.rds.arn
+     
+     # Performance insights with encryption
+     performance_insights_enabled = true
+     performance_insights_retention_period = var.environment == "production" ? 731 : 7
+     performance_insights_kms_key_id = aws_kms_key.rds.arn
    }
    ```
 
-3. Create VPC and Networking:
-   ```hcl
-   # terraform/network.tf
-   module "vpc" {
-     source = "terraform-aws-modules/vpc/aws"
-     
-     name = "irrigation-vpc"
-     cidr = "10.0.0.0/16"
-     
-     azs             = ["us-east-1a", "us-east-1b"]
-     private_subnets = ["10.0.1.0/24", "10.0.2.0/24"]
-     public_subnets  = ["10.0.101.0/24", "10.0.102.0/24"]
-     
-     enable_nat_gateway = true
-     single_nat_gateway = true
-   }
-   ```
+2. **Monitoring and Logging**:
+   - Enhanced monitoring with 60-second intervals
+   - Performance Insights enabled
+   - CloudWatch log exports for PostgreSQL and upgrades
+   - Automated query performance tracking
 
-4. Set up ECS Cluster:
+3. **High Availability**:
+   - Multi-AZ deployment in production
+   - Automated backups with 35-day retention in production
+   - Final snapshot creation on deletion
+   - Storage auto-scaling configuration
+
+4. **Security Groups and Networking**:
+   - VPC-based deployment
+   - Private subnet placement
+   - Restricted security group access
+   - Encrypted communication
+
+#### Azure SQL Database Configuration
+
+The Azure SQL Database setup includes comprehensive security and monitoring:
+
+1. **Authentication and Access**:
    ```hcl
-   # terraform/ecs.tf
-   resource "aws_ecs_cluster" "main" {
-     name = "irrigation-cluster"
-     
-     setting {
-       name  = "containerInsights"
-       value = "enabled"
+   resource "azurerm_sql_server" "main" {
+     # Azure AD authentication
+     azuread_administrator {
+       login_username = var.azure_ad_admin_username
+       object_id     = var.azure_ad_admin_object_id
      }
    }
    ```
 
-5. Create RDS Instance:
-   ```hcl
-   # terraform/database.tf
-   resource "aws_db_instance" "postgres" {
-     identifier        = "irrigation-db"
-     engine           = "postgres"
-     engine_version   = "14"
-     instance_class   = "db.t3.micro"
-     allocated_storage = 20
-     
-     db_name  = "irrigation_db"
-     username = var.db_username
-     password = var.db_password
-     
-     backup_retention_period = 7
-     multi_az               = false
-     skip_final_snapshot    = true
-     
-     vpc_security_group_ids = [aws_security_group.rds.id]
-     db_subnet_group_name   = aws_db_subnet_group.main.name
-   }
-   ```
+2. **Network Security**:
+   - Private endpoint configuration
+   - Network rules for storage accounts
+   - IP-based firewall rules
+   - Azure services access control
 
-6. Apply Infrastructure:
+3. **Monitoring and Diagnostics**:
+   - Log Analytics integration
+   - Automatic tuning enabled
+   - Query store monitoring
+   - Advanced threat protection
+
+4. **Data Protection**:
+   - Transparent data encryption
+   - Geo-redundant backups in production
+   - Vulnerability assessments
+   - Security alerts and auditing
+
+### Environment-Specific Configurations
+
+Both cloud providers use environment-specific settings:
+
+#### Production Environment
+- Extended backup retention (35 days)
+- Higher performance tiers
+- Multi-AZ/Zone redundancy
+- Enhanced monitoring retention
+
+#### Development Environment
+- Standard performance tiers
+- Local redundancy
+- Basic monitoring
+- Shorter backup retention (7 days)
+
+### Security Features
+
+1. **Encryption**:
+   - At-rest encryption using KMS/Azure Key Vault
+   - In-transit encryption using TLS 1.2
+   - Performance Insights encryption
+   - Backup encryption
+
+2. **Access Control**:
+   - IAM/Azure AD integration
+   - Role-based access control
+   - Network isolation
+   - Firewall rules
+
+3. **Monitoring**:
+   - Real-time performance monitoring
+   - Security event logging
+   - Audit logging
+   - Automated vulnerability scanning
+
+4. **Compliance**:
+   - Automated backup retention
+   - Encryption compliance
+   - Access logging
+   - Security alerting
+
+### Deployment Instructions
+
+1. **AWS Deployment**:
    ```bash
+   cd terraform/aws
+   terraform init
    terraform plan
    terraform apply
    ```
 
-### Container Registry Setup
-
-1. Create ECR Repositories:
+2. **Azure Deployment**:
    ```bash
-   aws ecr create-repository --repository-name irrigation-api
-   aws ecr create-repository --repository-name irrigation-frontend
+   cd terraform/azure
+   terraform init
+   terraform plan
+   terraform apply
    ```
 
-2. Configure GitHub Actions for ECR Access:
-   ```yaml
-   # Add to repository secrets
-   AWS_ACCESS_KEY_ID: your-access-key
-   AWS_SECRET_ACCESS_KEY: your-secret-key
-   AWS_REGION: us-east-1
-   ```
+### Required Variables
+
+Create a `terraform.tfvars` file with the following variables:
+
+```hcl
+# Common
+environment = "production"
+project_name = "irrigation"
+
+# AWS
+aws_region = "us-east-1"
+db_instance_class = "db.t3.small"
+db_allocated_storage = 20
+db_max_allocated_storage = 100
+
+# Azure
+location = "eastus"
+allowed_ip_addresses = ["YOUR_IP"]
+security_alert_emails = ["alerts@yourdomain.com"]
+```
 
 ## Deployment
 
