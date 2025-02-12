@@ -1,6 +1,6 @@
 /**
  * @file variables.tf
- * @description Variables for Azure infrastructure
+ * @description Variables for Azure infrastructure with enhanced security and monitoring
  */
 
 variable "project_name" {
@@ -51,6 +51,52 @@ variable "security_alert_emails" {
   description = "List of email addresses for security alerts"
   type        = list(string)
   default     = []
+}
+
+variable "private_endpoint_subnet_id" {
+  description = "Subnet ID for private endpoint"
+  type        = string
+}
+
+variable "log_analytics_workspace_id" {
+  description = "Log Analytics Workspace ID for diagnostic settings"
+  type        = string
+}
+
+variable "key_vault_object_ids" {
+  description = "List of object IDs that need access to Key Vault"
+  type        = list(string)
+  default     = []
+}
+
+variable "sql_server_version" {
+  description = "SQL Server version"
+  type        = string
+  default     = "12.0"
+}
+
+variable "sql_database_sku" {
+  description = "SQL Database SKU"
+  type = object({
+    production = string
+    development = string
+  })
+  default = {
+    production  = "S1"
+    development = "S0"
+  }
+}
+
+variable "backup_retention_days" {
+  description = "Backup retention days"
+  type = object({
+    production = number
+    development = number
+  })
+  default = {
+    production  = 35
+    development = 7
+  }
 }
 
 variable "common_tags" {

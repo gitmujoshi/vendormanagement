@@ -1,7 +1,27 @@
 /**
  * @file database.tf
- * @description Azure SQL Database configuration with enhanced security and performance
+ * @description Azure SQL Database configuration with enhanced security and monitoring
  */
+
+# Key Vault for storing secrets
+resource "azurerm_key_vault" "main" {
+  name                = "${var.project_name}-${var.environment}-kv"
+  resource_group_name = azurerm_resource_group.main.name
+  location           = azurerm_resource_group.main.location
+  tenant_id          = data.azurerm_client_config.current.tenant_id
+  sku_name           = "standard"
+
+  purge_protection_enabled = true
+  soft_delete_retention_days = 7
+
+  network_acls {
+    default_action = "Deny"
+    bypass         = "AzureServices"
+    ip_rules       = var.allowed_ip_addresses
+  }
+
+  tags = var.common_tags
+}
 
 resource "azurerm_sql_server" "main" {
   name                         = "${var.project_name}-${var.environment}-sql"
@@ -20,6 +40,23 @@ resource "azurerm_sql_server" "main" {
   # Enable encryption
   identity {
     type = "SystemAssigned"
+  }
+
+  tags = var.common_tags
+}
+
+# Private endpoint for SQL Server
+resource "azurerm_private_endpoint" "sql" {
+  name                = "${var.project_name}-${var.environment}-sql-pe"
+  resource_group_name = azurerm_resource_group.main.name
+  location           = azurerm_resource_group.main.location
+  subnet_id          = var.private_endpoint_subnet_id
+
+  private_service_connection {
+    name                           = "${var.project_name}-${var.environment}-sql-psc"
+    private_connection_resource_id = azurerm_sql_server.main.id
+    is_manual_connection          = false
+    subresource_names            = ["sqlServer"]
   }
 
   tags = var.common_tags
@@ -50,8 +87,63 @@ resource "azurerm_sql_database" "main" {
     storage_account_access_key = azurerm_storage_account.audit.primary_access_key
     storage_endpoint          = azurerm_storage_account.audit.primary_blob_endpoint
   }
+
+  # Enable transparent data encryption
+  transparent_data_encryption_enabled = true
   
   tags = var.common_tags
+}
+
+# Diagnostic settings for SQL Database
+resource "azurerm_monitor_diagnostic_setting" "sql" {
+  name                       = "${var.project_name}-${var.environment}-sql-diag"
+  target_resource_id        = azurerm_sql_database.main.id
+  log_analytics_workspace_id = var.log_analytics_workspace_id
+
+  log {
+    category = "SQLSecurityAuditEvents"
+    enabled  = true
+    retention_policy {
+      enabled = true
+      days    = 30
+    }
+  }
+
+  log {
+    category = "AutomaticTuning"
+    enabled  = true
+    retention_policy {
+      enabled = true
+      days    = 30
+    }
+  }
+
+  log {
+    category = "QueryStoreRuntimeStatistics"
+    enabled  = true
+    retention_policy {
+      enabled = true
+      days    = 30
+    }
+  }
+
+  metric {
+    category = "Basic"
+    enabled  = true
+    retention_policy {
+      enabled = true
+      days    = 30
+    }
+  }
+
+  metric {
+    category = "InstanceAndAppAdvanced"
+    enabled  = true
+    retention_policy {
+      enabled = true
+      days    = 30
+    }
+  }
 }
 
 # Storage account for audit logs
@@ -62,6 +154,12 @@ resource "azurerm_storage_account" "audit" {
   account_tier             = "Standard"
   account_replication_type = "LRS"
   min_tls_version         = "TLS1_2"
+  
+  network_rules {
+    default_action = "Deny"
+    bypass         = ["AzureServices"]
+    ip_rules       = var.allowed_ip_addresses
+  }
 
   tags = var.common_tags
 }

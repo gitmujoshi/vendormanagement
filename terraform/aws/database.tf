@@ -1,15 +1,18 @@
 /**
  * @file database.tf
- * @description AWS RDS Database configuration
+ * @description AWS RDS Database configuration with encryption and enhanced security
  */
 
 resource "aws_db_subnet_group" "main" {
   name       = "${var.environment}-irrigation-db-subnet"
   subnet_ids = module.vpc.private_subnets
 
-  tags = {
-    Name = "${var.environment}-irrigation-db-subnet"
-  }
+  tags = merge(
+    var.common_tags,
+    {
+      Name = "${var.environment}-irrigation-db-subnet"
+    }
+  )
 }
 
 resource "aws_security_group" "rds" {
@@ -31,15 +34,32 @@ resource "aws_security_group" "rds" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = {
-    Name = "${var.environment}-irrigation-rds-sg"
-  }
+  tags = merge(
+    var.common_tags,
+    {
+      Name = "${var.environment}-irrigation-rds-sg"
+    }
+  )
+}
+
+# KMS key for RDS encryption
+resource "aws_kms_key" "rds" {
+  description             = "KMS key for RDS encryption"
+  deletion_window_in_days = 7
+  enable_key_rotation     = true
+
+  tags = merge(
+    var.common_tags,
+    {
+      Name = "${var.environment}-irrigation-rds-key"
+    }
+  )
 }
 
 resource "aws_db_instance" "postgres" {
   identifier        = "${var.environment}-irrigation-db"
   engine            = "postgres"
-  engine_version    = "14"
+  engine_version    = var.db_engine_version
   instance_class    = var.db_instance_class
   allocated_storage = var.db_allocated_storage
 
@@ -50,31 +70,50 @@ resource "aws_db_instance" "postgres" {
   db_subnet_group_name   = aws_db_subnet_group.main.name
   vpc_security_group_ids = [aws_security_group.rds.id]
 
-  backup_retention_period = 7
+  # Enhanced backup settings
+  backup_retention_period = var.environment == "production" ? 35 : 7
   backup_window          = "03:00-04:00"
   maintenance_window     = "Mon:04:00-Mon:05:00"
+  copy_tags_to_snapshot  = true
 
+  # High availability settings
   multi_az               = var.environment == "production"
-  skip_final_snapshot    = true
+  skip_final_snapshot    = false
+  final_snapshot_identifier = "${var.environment}-irrigation-db-final-snapshot"
+  
+  # Encryption settings
+  storage_encrypted      = true
+  kms_key_id            = aws_kms_key.rds.arn
   
   enabled_cloudwatch_logs_exports = ["postgresql", "upgrade"]
   
   parameter_group_name = aws_db_parameter_group.postgres.name
 
-  # Added monitoring configurations
+  # Monitoring configurations
   monitoring_interval = 60
   monitoring_role_arn = aws_iam_role.rds_monitoring_role.arn
 
-  # Added storage autoscaling
+  # Storage autoscaling
   max_allocated_storage = var.db_max_allocated_storage
 
-  # Added performance insights
+  # Performance insights
   performance_insights_enabled = true
-  performance_insights_retention_period = 7
+  performance_insights_retention_period = var.environment == "production" ? 731 : 7
+  performance_insights_kms_key_id = aws_kms_key.rds.arn
 
-  tags = {
-    Name = "${var.environment}-irrigation-db"
-  }
+  # Auto minor version upgrade
+  auto_minor_version_upgrade = true
+
+  # Enhanced monitoring
+  monitoring_interval = 60
+  monitoring_role_arn = aws_iam_role.rds_monitoring_role.arn
+
+  tags = merge(
+    var.common_tags,
+    {
+      Name = "${var.environment}-irrigation-db"
+    }
+  )
 }
 
 resource "aws_db_parameter_group" "postgres" {
@@ -98,8 +137,25 @@ resource "aws_db_parameter_group" "postgres" {
 
   parameter {
     name  = "shared_preload_libraries"
-    value = "pg_stat_statements"
+    value = "pg_stat_statements,auto_explain"
   }
+
+  parameter {
+    name  = "auto_explain.log_min_duration"
+    value = "5000"
+  }
+
+  parameter {
+    name  = "log_min_duration_statement"
+    value = "5000"
+  }
+
+  tags = merge(
+    var.common_tags,
+    {
+      Name = "${var.environment}-irrigation-db-params"
+    }
+  )
 }
 
 # RDS Enhanced Monitoring IAM Role
@@ -118,6 +174,8 @@ resource "aws_iam_role" "rds_monitoring_role" {
       }
     ]
   })
+
+  tags = var.common_tags
 }
 
 resource "aws_iam_role_policy_attachment" "rds_monitoring_policy" {
@@ -160,4 +218,10 @@ variable "db_max_allocated_storage" {
   description = "Maximum allocated storage for RDS instance in GB"
   type        = number
   default     = 100
+}
+
+variable "db_engine_version" {
+  description = "RDS engine version"
+  type        = string
+  default     = "14"
 } 
