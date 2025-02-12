@@ -1,37 +1,7 @@
 /**
  * @file database.tf
- * @description Azure SQL Database configuration
+ * @description AWS RDS Database configuration
  */
-
-resource "azurerm_sql_server" "main" {
-  name                         = "${var.project_name}-${var.environment}-sql"
-  resource_group_name         = azurerm_resource_group.main.name
-  location                    = azurerm_resource_group.main.location
-  version                     = "12.0"
-  administrator_login         = var.db_admin_username
-  administrator_login_password = var.db_admin_password
-
-  tags = var.common_tags
-}
-
-resource "azurerm_sql_database" "main" {
-  name                = "${var.project_name}-${var.environment}-db"
-  resource_group_name = azurerm_resource_group.main.name
-  location           = azurerm_resource_group.main.location
-  server_name        = azurerm_sql_server.main.name
-  edition            = "Standard"
-  
-  tags = var.common_tags
-}
-
-# Firewall rules
-resource "azurerm_sql_firewall_rule" "allow_azure_services" {
-  name                = "AllowAzureServices"
-  resource_group_name = azurerm_resource_group.main.name
-  server_name         = azurerm_sql_server.main.name
-  start_ip_address    = "0.0.0.0"
-  end_ip_address      = "0.0.0.0"
-}
 
 resource "aws_db_subnet_group" "main" {
   name       = "${var.environment}-irrigation-db-subnet"
@@ -91,6 +61,17 @@ resource "aws_db_instance" "postgres" {
   
   parameter_group_name = aws_db_parameter_group.postgres.name
 
+  # Added monitoring configurations
+  monitoring_interval = 60
+  monitoring_role_arn = aws_iam_role.rds_monitoring_role.arn
+
+  # Added storage autoscaling
+  max_allocated_storage = var.db_max_allocated_storage
+
+  # Added performance insights
+  performance_insights_enabled = true
+  performance_insights_retention_period = 7
+
   tags = {
     Name = "${var.environment}-irrigation-db"
   }
@@ -114,6 +95,34 @@ resource "aws_db_parameter_group" "postgres" {
     name  = "log_checkpoints"
     value = "1"
   }
+
+  parameter {
+    name  = "shared_preload_libraries"
+    value = "pg_stat_statements"
+  }
+}
+
+# RDS Enhanced Monitoring IAM Role
+resource "aws_iam_role" "rds_monitoring_role" {
+  name = "${var.environment}-rds-monitoring-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "monitoring.rds.amazonaws.com"
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "rds_monitoring_policy" {
+  role       = aws_iam_role.rds_monitoring_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole"
 }
 
 # Variables
@@ -145,4 +154,10 @@ variable "db_password" {
   description = "Database master password"
   type        = string
   sensitive   = true
+}
+
+variable "db_max_allocated_storage" {
+  description = "Maximum allocated storage for RDS instance in GB"
+  type        = number
+  default     = 100
 } 
