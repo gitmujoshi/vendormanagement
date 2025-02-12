@@ -9,14 +9,17 @@ A full-stack application for managing irrigation systems, built with React, Node
 - [Environment Configuration](#environment-configuration)
 - [Database Setup](#database-setup)
 - [Running Tests](#running-tests)
-- [Deployment](#deployment)
 - [Infrastructure Setup](#infrastructure-setup)
+- [Deployment](#deployment)
 - [Monitoring and Logging](#monitoring-and-logging)
 - [Security Considerations](#security-considerations)
 - [API Documentation](#api-documentation)
+- [Contributing](#contributing)
+- [Troubleshooting](#troubleshooting)
 
 ## Features
 
+### Core Features
 - User authentication and role-based access control
 - Property and irrigation station management
 - Inspection records and repair documentation
@@ -24,13 +27,30 @@ A full-stack application for managing irrigation systems, built with React, Node
 - Mobile-responsive design
 - Secure API with rate limiting and JWT authentication
 
+### Technical Features
+- TypeScript for enhanced type safety
+- React with modern hooks and context
+- Express.js backend with middleware architecture
+- PostgreSQL database with Prisma ORM
+- Redis for caching and rate limiting
+- WebSocket for real-time updates
+- Comprehensive test coverage
+- CI/CD pipeline with GitHub Actions
+
 ## Prerequisites
 
+### Required Software
 - Node.js (v16 or higher)
 - PostgreSQL (v14 or higher)
+- Redis (v6 or higher)
 - Docker and Docker Compose
-- AWS CLI (for deployment)
 - Git
+
+### Cloud Services
+- AWS Account with required permissions
+- AWS CLI configured
+- Domain name (for production)
+- SSL certificate
 
 ## Local Development Setup
 
@@ -51,17 +71,27 @@ A full-stack application for managing irrigation systems, built with React, Node
    npm install
    ```
 
-3. Create environment files:
+3. Set up environment files:
    ```bash
+   # Backend environment
    cp .env.example .env
+
+   # Frontend environment
+   cp .env.example .env.local
    ```
 
-4. Start the development servers:
+4. Start development servers:
    ```bash
-   # Start backend (from backend directory)
+   # Start all services using Docker Compose
+   docker-compose up -d
+
+   # Or start services individually:
+   # Backend
+   cd backend
    npm run dev
 
-   # Start frontend (from frontend directory)
+   # Frontend
+   cd frontend
    npm start
    ```
 
@@ -111,131 +141,258 @@ cd frontend
 npm test
 ```
 
-## Deployment
+## Infrastructure Setup
 
-### Using Docker Compose (Development)
+### AWS Infrastructure (Using Terraform)
 
-```bash
-docker-compose up --build
-```
-
-### Production Deployment (AWS)
-
-1. Configure AWS credentials:
+1. Initialize Terraform:
    ```bash
-   aws configure
+   cd terraform
+   terraform init
    ```
 
-2. Create ECR repositories:
+2. Configure AWS Provider:
+   ```hcl
+   # terraform/provider.tf
+   provider "aws" {
+     region = "us-east-1"
+     # Additional provider configuration
+   }
+   ```
+
+3. Create VPC and Networking:
+   ```hcl
+   # terraform/network.tf
+   module "vpc" {
+     source = "terraform-aws-modules/vpc/aws"
+     
+     name = "irrigation-vpc"
+     cidr = "10.0.0.0/16"
+     
+     azs             = ["us-east-1a", "us-east-1b"]
+     private_subnets = ["10.0.1.0/24", "10.0.2.0/24"]
+     public_subnets  = ["10.0.101.0/24", "10.0.102.0/24"]
+     
+     enable_nat_gateway = true
+     single_nat_gateway = true
+   }
+   ```
+
+4. Set up ECS Cluster:
+   ```hcl
+   # terraform/ecs.tf
+   resource "aws_ecs_cluster" "main" {
+     name = "irrigation-cluster"
+     
+     setting {
+       name  = "containerInsights"
+       value = "enabled"
+     }
+   }
+   ```
+
+5. Create RDS Instance:
+   ```hcl
+   # terraform/database.tf
+   resource "aws_db_instance" "postgres" {
+     identifier        = "irrigation-db"
+     engine           = "postgres"
+     engine_version   = "14"
+     instance_class   = "db.t3.micro"
+     allocated_storage = 20
+     
+     db_name  = "irrigation_db"
+     username = var.db_username
+     password = var.db_password
+     
+     backup_retention_period = 7
+     multi_az               = false
+     skip_final_snapshot    = true
+     
+     vpc_security_group_ids = [aws_security_group.rds.id]
+     db_subnet_group_name   = aws_db_subnet_group.main.name
+   }
+   ```
+
+6. Apply Infrastructure:
+   ```bash
+   terraform plan
+   terraform apply
+   ```
+
+### Container Registry Setup
+
+1. Create ECR Repositories:
    ```bash
    aws ecr create-repository --repository-name irrigation-api
    aws ecr create-repository --repository-name irrigation-frontend
    ```
 
-3. Build and push Docker images:
+2. Configure GitHub Actions for ECR Access:
+   ```yaml
+   # Add to repository secrets
+   AWS_ACCESS_KEY_ID: your-access-key
+   AWS_SECRET_ACCESS_KEY: your-secret-key
+   AWS_REGION: us-east-1
+   ```
+
+## Deployment
+
+### Development Deployment
+
+1. Using Docker Compose:
+   ```bash
+   # Build and start all services
+   docker-compose -f docker-compose.dev.yml up --build
+
+   # View logs
+   docker-compose logs -f
+   ```
+
+### Production Deployment
+
+1. Build and Push Docker Images:
    ```bash
    # Login to ECR
    aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com
 
-   # Build and push images
-   docker-compose -f docker-compose.prod.yml build
-   docker-compose -f docker-compose.prod.yml push
+   # Build images
+   docker build -t irrigation-api ./backend
+   docker build -t irrigation-frontend ./frontend
+
+   # Tag and push
+   docker tag irrigation-api:latest $AWS_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/irrigation-api:latest
+   docker tag irrigation-frontend:latest $AWS_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/irrigation-frontend:latest
+
+   docker push $AWS_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/irrigation-api:latest
+   docker push $AWS_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/irrigation-frontend:latest
    ```
 
-4. Deploy to ECS:
+2. Deploy to ECS:
    ```bash
+   # Update ECS services
    aws ecs update-service --cluster irrigation-cluster --service irrigation-api --force-new-deployment
    aws ecs update-service --cluster irrigation-cluster --service irrigation-frontend --force-new-deployment
    ```
 
-## Infrastructure Setup
+### Database Migrations
 
-### AWS Resources Required
+1. Initial Setup:
+   ```bash
+   # Run initial migration
+   cd backend
+   npm run migrate:up
+   ```
 
-1. **VPC Configuration**:
-   - Create VPC with public and private subnets
-   - Set up NAT Gateway and Internet Gateway
-   - Configure route tables
+2. Production Migration:
+   ```bash
+   # Create migration
+   npm run migrate:create
 
-2. **ECS Cluster**:
-   - Create ECS cluster
-   - Set up task definitions for API and frontend
-   - Configure services with load balancers
-
-3. **RDS Database**:
-   - Create PostgreSQL RDS instance
-   - Configure security groups
-   - Set up automated backups
-
-4. **Load Balancers**:
-   - Application Load Balancer for frontend
-   - Application Load Balancer for API
-   - Configure SSL certificates
-
-5. **Security Groups**:
-   - Frontend ALB security group
-   - API ALB security group
-   - ECS tasks security group
-   - RDS security group
-
-### Terraform Setup
-
-Infrastructure is managed using Terraform. See `terraform/` directory for configuration files.
-
-```bash
-cd terraform
-terraform init
-terraform plan
-terraform apply
-```
+   # Apply migration
+   NODE_ENV=production npm run migrate:up
+   ```
 
 ## Monitoring and Logging
 
 ### Setup Monitoring
 
-1. **CloudWatch**:
-   - Configure CloudWatch agent
-   - Set up log groups
-   - Create dashboards and alarms
+1. CloudWatch Configuration:
+   ```bash
+   # Install CloudWatch agent
+   aws ssm send-command \
+     --document-name "AWS-ConfigureAWSPackage" \
+     --parameters '{"action":["Install"],"name":["AmazonCloudWatchAgent"]}' \
+     --targets "Key=tag:Environment,Values=production"
+   ```
 
-2. **Sentry**:
-   - Add Sentry DSN to environment variables
-   - Configure error tracking
+2. Logging Configuration:
+   ```json
+   {
+     "logs": {
+       "logs_collected": {
+         "files": {
+           "collect_list": [
+             {
+               "file_path": "/var/log/application.log",
+               "log_group_name": "/irrigation/application",
+               "log_stream_name": "{instance_id}"
+             }
+           ]
+         }
+       }
+     }
+   }
+   ```
 
-3. **New Relic**:
-   - Install New Relic agent
-   - Configure APM monitoring
+### Alerts and Notifications
 
-### Log Management
-
-- Application logs are stored in CloudWatch Logs
-- Database logs are stored in RDS logs
-- Load balancer logs are stored in S3
+1. Set up CloudWatch Alarms:
+   ```bash
+   aws cloudwatch put-metric-alarm \
+     --alarm-name cpu-utilization \
+     --alarm-description "CPU utilization exceeded 80%" \
+     --metric-name CPUUtilization \
+     --namespace AWS/ECS \
+     --statistic Average \
+     --period 300 \
+     --threshold 80 \
+     --comparison-operator GreaterThanThreshold \
+     --evaluation-periods 2 \
+     --alarm-actions arn:aws:sns:region:account-id:notification-topic
+   ```
 
 ## Security Considerations
 
-1. **Authentication**:
-   - JWT tokens with expiration
-   - Secure password hashing
-   - Role-based access control
+### Application Security
+- JWT-based authentication
+- Role-based access control
+- Input validation and sanitization
+- Rate limiting
+- CORS configuration
+- Security headers (Helmet)
+- SQL injection prevention
+- XSS protection
 
-2. **API Security**:
-   - Rate limiting
-   - CORS configuration
-   - Input validation
-   - SQL injection protection
+### Infrastructure Security
+- VPC security groups
+- Network ACLs
+- SSL/TLS encryption
+- Regular security updates
+- Automated vulnerability scanning
+- Secure secret management
+- Regular backups
 
-3. **Infrastructure Security**:
-   - VPC security groups
-   - Network ACLs
-   - SSL/TLS encryption
-   - Regular security updates
+## Troubleshooting
 
-## API Documentation
+### Common Issues
 
-API documentation is available at `/api/docs` when running the server.
+1. Database Connection Issues:
+   ```bash
+   # Check database connectivity
+   pg_isready -h $DB_HOST -p $DB_PORT -U $DB_USER
 
-For detailed API documentation, see [API.md](./API.md).
+   # View database logs
+   docker-compose logs db
+   ```
+
+2. Container Issues:
+   ```bash
+   # View container logs
+   docker logs <container_id>
+
+   # Check container status
+   docker ps -a
+   ```
+
+3. Deployment Issues:
+   ```bash
+   # Check ECS service status
+   aws ecs describe-services --cluster irrigation-cluster --services irrigation-api
+
+   # View CloudWatch logs
+   aws logs get-log-events --log-group-name /ecs/irrigation-api --log-stream-name <stream-name>
+   ```
 
 ## Contributing
 
@@ -244,6 +401,18 @@ For detailed API documentation, see [API.md](./API.md).
 3. Commit your changes
 4. Push to the branch
 5. Create a Pull Request
+
+### Development Workflow
+1. Create branch from develop
+2. Make changes
+3. Run tests and linting
+4. Create PR
+5. Code review
+6. Merge to develop
+7. Deploy to staging
+8. QA testing
+9. Merge to main
+10. Deploy to production
 
 ## License
 
