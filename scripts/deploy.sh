@@ -1,4 +1,4 @@
-#!/bin/bash
+    #!/bin/bash
 # @file deploy.sh
 # @description Main deployment script for the application
 
